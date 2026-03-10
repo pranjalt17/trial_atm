@@ -1,13 +1,17 @@
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Numeric, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 
-engine = create_engine(
-    "postgresql://atm_user:tpBw2E2lZAFlnIzUrJxJfrnAMja1E29V@dpg-d6nurengi27c73achbkg-a.oregon-postgres.render.com/atm_db_q6ig",
-    echo=False
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-Session = sessionmaker(bind=engine)
+engine = create_engine(DATABASE_URL)
+
+Session = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 Base = declarative_base()
 
 class User(Base):
