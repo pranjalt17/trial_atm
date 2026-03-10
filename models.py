@@ -3,7 +3,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 
 engine = create_engine(
-    "postgresql://postgres:homes_121@localhost:5432/postgres",
+    "postgresql://atm_user:tpBw2E2lZAFlnIzUrJxJfrnAMja1E29V@dpg-d6nurengi27c73achbkg-a.oregon-postgres.render.com/atm_db_q6ig",
     echo=False
 )
 
