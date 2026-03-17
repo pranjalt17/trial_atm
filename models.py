@@ -3,16 +3,39 @@ from sqlalchemy import create_engine, Column, Integer, String, Numeric, ForeignK
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 
+# ✅ Load env (works locally, ignored on Render if not installed)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
+
+# ✅ Get DB URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+# ✅ Fallback for local development
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./test.db"
+
+# ✅ Fix for Render PostgreSQL
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+
+# ✅ Engine config (important for SQLite)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+)
 
 Session = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
 )
+
 Base = declarative_base()
+
+# ------------------ MODELS ------------------
 
 class User(Base):
     __tablename__ = "users"
@@ -48,7 +71,8 @@ class Transaction(Base):
 
     account = relationship("Account", back_populates="transactions")
 
+# ------------------ INIT DB ------------------
 
 def init_db():
-    Base.metadata.create_all(engine)
-    return Session()
+    Base.metadata.create_all(bind=engine)
+print("DB URL:", DATABASE_URL)

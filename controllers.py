@@ -4,11 +4,24 @@ from sqlalchemy.orm import Session
 from models import Session, init_db, User, Account, Transaction
 from decimal import Decimal
 from pydantic import BaseModel
-import google as genai
 import os
 import json
-from dotenv import load_dotenv
-load_dotenv()
+
+# ✅ Correct Gemini import
+import google.generativeai as genai
+
+# Optional dotenv (for local only)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
+
+# ✅ Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# ✅ Use working model (NOT 3-flash-preview)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 app = FastAPI()
 
@@ -21,15 +34,14 @@ app.add_middleware(
 
 init_db()
 
+# ------------------ DB ------------------
+
 def get_db():
     db = Session()
     try:
         yield db
     finally:
         db.close()
-
-# ✅ Correct Gemini Client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ------------------ SCHEMAS ------------------
 
@@ -62,20 +74,21 @@ def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
 
         Return ONLY JSON:
         {{
-            "action": "deposit or withdraw",
+            "action": "deposit" or "withdraw",
             "amount": number
         }}
         """
 
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt
-        )
+        response = model.generate_content(prompt)
 
-        text = response.text.strip()
-        text = text.replace("```json", "").replace("```", "").strip()
+        ai_text = response.text.strip()
 
-        parsed = json.loads(text)
+        print("AI RAW:", ai_text)  # 🔥 DEBUG
+
+        # Clean markdown if Gemini returns it
+        ai_text = ai_text.replace("```json", "").replace("```", "").strip()
+
+        parsed = json.loads(ai_text)
 
         action = parsed["action"].lower()
         amount = Decimal(parsed["amount"])
@@ -125,6 +138,7 @@ def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
 
     return {
         "message": f"{action} successful",
+        "amount": float(amount),
         "current_balance": float(account.balance)
     }
 
