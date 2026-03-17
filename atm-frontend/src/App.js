@@ -16,8 +16,30 @@ function App() {
 
   const [transactions, setTransactions] = useState([]);
   const [activeSection, setActiveSection] = useState("");
+  const [aiCommand, setAiCommand] = useState("");
 
+  const handleAICommand = async () => {
+  const res = await fetch(`${API_BASE}/ai-command`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      account_id: accountId,
+      command: aiCommand
+    })
+  });
 
+  const data = await res.json();
+
+  if (res.ok) {
+    alert(data.message);
+    setBalance(data.current_balance);
+    setAiCommand("");
+  } else {
+    alert(data.detail);
+  }
+};
 
   const handleRegister = async () => {
 
@@ -481,7 +503,27 @@ function App() {
           </div>
 
         )}
+        <div className="bg-yellow-50 p-6 rounded-xl text-center mt-6">
+  <h2 className="text-xl font-semibold mb-3 text-yellow-700">
+    AI Command
+  </h2>
 
+  <input
+    className="border rounded-lg px-4 py-2 w-80 mb-4"
+    placeholder="Type: deposit 500 or withdraw 200"
+    value={aiCommand}
+    onChange={(e) => setAiCommand(e.target.value)}
+  />
+
+  <br />
+
+  <button
+    className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
+    onClick={handleAICommand}
+  >
+    Execute
+  </button>
+</div>
 
 
         <div className="flex justify-center mt-8">

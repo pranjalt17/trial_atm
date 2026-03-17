@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from models import Session, init_db, User, Account, Transaction
 from decimal import Decimal
 from pydantic import BaseModel
+import google.generativeai as genai
+import os
 
 app = FastAPI()
 
@@ -25,6 +27,9 @@ def get_db():
     finally:
         db.close()
 
+genai.configure(api_key=os.getenv("AIzaSyAhis2HiWHD_g4rDA63OWtnnmjoSb7D7EQ"))
+
+model = genai.GenerativeModel("gemini-3-flash-preview")
 
 class CardAndPin(BaseModel):
     card_number: str
@@ -38,6 +43,83 @@ class CreateAccountRequest(BaseModel):
     card_number: str
     pin: str
     initial_deposit: Decimal
+
+class AICommandRequest(BaseModel):
+    account_id: int
+    command: str
+
+
+@app.post("/ai-command")
+def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
+    try:
+        prompt = f"""
+        You are a banking assistant.
+
+        Extract action and amount from this sentence:
+        "{req.command}"
+
+        Return ONLY JSON:
+        {{
+            "action": "deposit or withdraw",
+            "amount": number
+        }}
+        """
+
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+
+        import json
+        parsed = json.loads(text)
+
+        action = parsed["action"]
+        amount = Decimal(parsed["amount"])
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="AI parsing failed")
+
+    # Fetch account
+    account = db.query(Account).filter_by(id=req.account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Perform action
+    if action == "deposit":
+        before = account.balance
+        account.balance += amount
+
+        transaction = Transaction(
+            account_id=req.account_id,
+            transaction_type="DEPOSIT",
+            amount=amount,
+            balance_before=before,
+            balance_after=account.balance
+        )
+
+    elif action == "withdraw":
+        if amount > account.balance:
+            raise HTTPException(status_code=400, detail="Insufficient balance")
+
+        before = account.balance
+        account.balance -= amount
+
+        transaction = Transaction(
+            account_id=req.account_id,
+            transaction_type="WITHDRAW",
+            amount=amount,
+            balance_before=before,
+            balance_after=account.balance
+        )
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    db.add(transaction)
+    db.commit()
+
+    return {
+        "message": f"{action} successful",
+        "current_balance": float(account.balance)
+    }
 
 @app.post("/accounts/create")
 def create_account(request: CreateAccountRequest, db: Session = Depends(get_db)):
