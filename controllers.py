@@ -6,9 +6,11 @@ from decimal import Decimal
 from pydantic import BaseModel
 import google as genai
 import os
+import json
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI()
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,7 +21,6 @@ app.add_middleware(
 
 init_db()
 
-
 def get_db():
     db = Session()
     try:
@@ -27,14 +28,14 @@ def get_db():
     finally:
         db.close()
 
-genai.configure(api_key=os.getenv("AIzaSyAhis2HiWHD_g4rDA63OWtnnmjoSb7D7EQ"))
+# ✅ Correct Gemini Client
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-model = genai.GenerativeModel("gemini-3-flash-preview")
+# ------------------ SCHEMAS ------------------
 
 class CardAndPin(BaseModel):
     card_number: str
     pin: str
-
 
 class AmountRequest(BaseModel):
     amount: Decimal
@@ -48,6 +49,7 @@ class AICommandRequest(BaseModel):
     account_id: int
     command: str
 
+# ------------------ AI COMMAND ------------------
 
 @app.post("/ai-command")
 def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
@@ -55,7 +57,7 @@ def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
         prompt = f"""
         You are a banking assistant.
 
-        Extract action and amount from this sentence:
+        Extract action and amount from:
         "{req.command}"
 
         Return ONLY JSON:
@@ -65,16 +67,21 @@ def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
         }}
         """
 
-        response = model.generate_content(prompt)
-        text = response.text.strip()
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
 
-        import json
+        text = response.text.strip()
+        text = text.replace("```json", "").replace("```", "").strip()
+
         parsed = json.loads(text)
 
-        action = parsed["action"]
+        action = parsed["action"].lower()
         amount = Decimal(parsed["amount"])
 
     except Exception as e:
+        print("AI ERROR:", str(e))
         raise HTTPException(status_code=400, detail="AI parsing failed")
 
     # Fetch account
@@ -121,6 +128,8 @@ def ai_command(req: AICommandRequest, db: Session = Depends(get_db)):
         "current_balance": float(account.balance)
     }
 
+# ------------------ NORMAL APIs ------------------
+
 @app.post("/accounts/create")
 def create_account(request: CreateAccountRequest, db: Session = Depends(get_db)):
 
@@ -139,6 +148,7 @@ def create_account(request: CreateAccountRequest, db: Session = Depends(get_db))
     db.commit()
 
     return {"message": "Account created successfully"}
+
 
 @app.post("/login")
 def login(request: CardAndPin, db: Session = Depends(get_db)):
