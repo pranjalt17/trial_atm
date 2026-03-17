@@ -21,8 +21,7 @@ except:
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ✅ Use working model (NOT 3-flash-preview)
-model = genai.GenerativeModel("gemini-1.5-flash")
-
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 app = FastAPI()
 
 app.add_middleware(
