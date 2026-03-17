@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from models import Session, init_db, User, Account, Transaction
 from decimal import Decimal
 from pydantic import BaseModel
-import google as genai
+import google.generativeai as genai
 import os
 
 app = FastAPI()
